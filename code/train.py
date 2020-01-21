@@ -25,6 +25,7 @@ def get_data(train_path, df):
         img = str(next(nifti))
         # Mask the image to have only brain related information
         img = nib.load(img).get_data()
+        img = np.asarray(img, dtype='float32')
         img = np.nan_to_num(img)
         data['imgs'].append(img)
         data['subject_id'].append(row['Subject'])
@@ -47,7 +48,34 @@ X_train, X_test, y_train, y_test = train_test_split(data['imgs'],
                                                     data['labels'],
                                                     test_size=test_size,
                                                     random_state=rnd_seed)
+# Transform to correct format
+X_train = np.array(X_train)[:, :, :, :, np.newaxis]
+X_test = np.array(X_test)[:, :, :, :, np.newaxis]
+y_train = np.array(y_train, dtype='float32')
+y_test = np.array(y_test, dtype='float32')
 
+filters=1
+kernel_size=3
+strides=3
+model = models.Sequential([
+    layers.Conv3D(filters, kernel_size, strides, input_shape=(121, 145, 121, 1)),
+    layers.ReLU(),
+    layers.Conv3D(filters, kernel_size, strides),
+    layers.BatchNormalization(),
+    layers.ReLU(),
+    layers.MaxPool3D(),
+    layers.Flatten(),
+    layers.Dense(1),
+])
+model.compile(optimizer='adam',
+              loss='mae')
+
+model.fit(X_train, y_train,
+          epochs=20,
+          validation_data=(X_test, y_test)
+         )
+
+model.predict(X_test)
 import pdb
 pdb.set_trace()
 
