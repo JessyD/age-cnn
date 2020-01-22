@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from tensorflow.keras import layers, models, optimizers
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 import nibabel as nib
 from nilearn.masking import apply_mask
@@ -32,7 +33,7 @@ def get_data(train_path, df):
 
 def cnn_model():
     # Define parameters for the network
-    filters = 1
+    filters = 8
     kernel_size = 3
     STRIDES_CONV = 1
     STRIDES_MAXPOOL = 2
@@ -43,18 +44,18 @@ def cnn_model():
     d3 = 121
     NUM_CHANELS = 1
     N_BLOCKS = 5
-    MINI_BATCH = 28
+    filters_n = [1, 2, 4, 8, 16]
 
     # Create the network
     model = models.Sequential()
     model.add(layers.InputLayer(input_shape=(d1, d2, d3, NUM_CHANELS),
                                 name='input'))
     for n in range(1, N_BLOCKS+1):
-        model.add(layers.Conv3D(filters, kernel_size,
+        model.add(layers.Conv3D(filters * filters_n[n-1], kernel_size,
                                 STRIDES_CONV, padding=conv_padding,
                                 name='Block_{}_Conv1'.format(n)))
         model.add(layers.ReLU(name='Block_{}_Relu1'.format(n)))
-        model.add(layers.Conv3D(filters, kernel_size,
+        model.add(layers.Conv3D(filters * filters_n[n-1], kernel_size,
                                 STRIDES_CONV, padding=conv_padding,
                                 name='Block_{}_Conv2'.format(n)))
         model.add(layers.BatchNormalization())
@@ -75,6 +76,7 @@ if __name__ == '__main__':
     demographics_path = data_path / 'all_BANC_2019.csv'
     df = pd.read_csv(data_path / 'cleaned_BANC_2019.csv')
     rnd_seed = 1234
+    MINI_BATCH = 28
 
     # Get data and split into training and test
     data = get_data(train_path, df)
@@ -89,6 +91,14 @@ if __name__ == '__main__':
     y_train = np.array(y_train, dtype='float32')
     y_test = np.array(y_test, dtype='float32')
 
+    # Augment training images
+    datagen = ImageDataGenerator(
+                rotation_range=40,
+                width_shift_range=(-10, 10),
+                height_shift_range=(10, 10)
+                )
+    datagen.fit(X_train)
+
     model = cnn_model()
 
     optimizer = optimizers.SGD(learning_rate=0.01,
@@ -99,9 +109,9 @@ if __name__ == '__main__':
 
     model.summary()
 
-    model.fit(X_train, y_train,
-              epochs=2,
-              validation_data=(X_test, y_test))
+    model.fit_generator(datagen.flow(X_train, y_train, batch_size=MINI_BATCH),
+                        epochs=2,
+                        validation_data=(X_test, y_test))
 
     model.predict(X_test)
 
