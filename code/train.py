@@ -36,6 +36,8 @@ def cnn_model():
     kernel_size = 3
     STRIDES_CONV = 1
     STRIDES_MAXPOOL = 2
+    conv_padding = 'same'
+    pool_padding = 'same'
     d1 = 121
     d2 = 145
     d3 = 121
@@ -48,15 +50,18 @@ def cnn_model():
     model.add(layers.InputLayer(input_shape=(d1, d2, d3, NUM_CHANELS),
                                 name='input'))
     for n in range(1, N_BLOCKS+1):
-        model.add(layers.Conv3D(filters, kernel_size, STRIDES_CONV,
+        model.add(layers.Conv3D(filters, kernel_size,
+                                STRIDES_CONV, padding=conv_padding,
                                 name='Block_{}_Conv1'.format(n)))
         model.add(layers.ReLU(name='Block_{}_Relu1'.format(n)))
-        model.add(layers.Conv3D(filters, kernel_size, STRIDES_CONV,
+        model.add(layers.Conv3D(filters, kernel_size,
+                                STRIDES_CONV, padding=conv_padding,
                                 name='Block_{}_Conv2'.format(n)))
         model.add(layers.BatchNormalization())
         model.add(layers.ReLU(name='Block_{}_Relu2'.format(n)))
         model.add(layers.MaxPool3D(pool_size=(2, 2, 2),
                                    strides=STRIDES_MAXPOOL,
+                                   padding=pool_padding,
                                    name='Block_{}_MaxPool'.format(n)))
     model.add(layers.Flatten())
     model.add(layers.Dense(1))
