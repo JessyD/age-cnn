@@ -38,7 +38,7 @@ def cnn_model():
     STRIDES_CONV = 1
     STRIDES_MAXPOOL = 2
     conv_padding = 'same'
-    pool_padding = 'same'
+    pool_padding = 'valid'
     d1 = 121
     d2 = 145
     d3 = 121
@@ -58,12 +58,14 @@ def cnn_model():
         model.add(layers.Conv3D(filters * filters_n[n-1], kernel_size,
                                 STRIDES_CONV, padding=conv_padding,
                                 name='Block_{}_Conv2'.format(n)))
-        model.add(layers.BatchNormalization())
+        if not n == 5:
+            model.add(layers.BatchNormalization())
         model.add(layers.ReLU(name='Block_{}_Relu2'.format(n)))
         model.add(layers.MaxPool3D(pool_size=(2, 2, 2),
-                                   strides=STRIDES_MAXPOOL,
-                                   padding=pool_padding,
-                                   name='Block_{}_MaxPool'.format(n)))
+                               strides=STRIDES_MAXPOOL,
+                               padding=pool_padding,
+                               name='Block_{}_MaxPool'.format(n)))
+
     model.add(layers.Flatten())
     model.add(layers.Dense(1))
     return model
@@ -93,7 +95,7 @@ if __name__ == '__main__':
 
     model = cnn_model()
 
-    optimizer = optimizers.SGD(learning_rate=0.01,
+    optimizer = optimizers.SGD(learning_rate=0.0001,
                                momentum=0.9,
                                decay=0.0005)
     model.compile(optimizer=optimizer,
@@ -101,9 +103,9 @@ if __name__ == '__main__':
 
     model.summary()
 
-    model.fit(X_train, y_train, batch_size=MINI_BATCH,
+    model.fit(X_train, y_train, batch_size=6,
               epochs=2,
               validation_data=(X_test, y_test))
 
-    model.predict(X_test)
+    model.predict(X_test, verbose=1, batch_size=2)
 
