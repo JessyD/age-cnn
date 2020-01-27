@@ -91,14 +91,6 @@ if __name__ == '__main__':
     y_train = np.array(y_train, dtype='float32')
     y_test = np.array(y_test, dtype='float32')
 
-    # Augment training images
-    datagen = ImageDataGenerator(
-                rotation_range=40,
-                width_shift_range=(-10, 10),
-                height_shift_range=(10, 10)
-                )
-    datagen.fit(X_train)
-
     model = cnn_model()
 
     optimizer = optimizers.SGD(learning_rate=0.01,
@@ -109,9 +101,9 @@ if __name__ == '__main__':
 
     model.summary()
 
-    model.fit_generator(datagen.flow(X_train, y_train, batch_size=MINI_BATCH),
-                        epochs=2,
-                        validation_data=(X_test, y_test))
+    model.fit(X_train, y_train, batch_size=MINI_BATCH,
+              epochs=2,
+              validation_data=(X_test, y_test))
 
     model.predict(X_test)
 
