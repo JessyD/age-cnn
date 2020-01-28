@@ -4,6 +4,7 @@ import glob
 
 import pandas as pd
 import nibabel as nib
+import numpy as np
 
 
 class PreprocessData(object):
@@ -12,15 +13,93 @@ class PreprocessData(object):
         self.shuffle = shuffle
         self.batchsize = batch_size
 
-    def read_mri_data(path):
-        """
-        Function to load the nifti file and transform it to tensorflow object
-        """
+    def find_image_boundary(path):
+        """ Find the limit of blank voxels in one image.
 
-        # image size
-        width = 121
-        height = 145
-        depth = 121
+        :param path:
+        :return:
+        """
+        min_x = 1000
+        max_x = 0
+        min_y = 1000
+        max_y = 0
+        min_z = 1000
+        max_z = 0
+
+        img = nib.load(path).get_data()
+        img = np.asarray(img, dtype='float32')
+        img = np.nan_to_num(img)
+        img_shape = img.shape
+
+        #     X
+        for i in range(0, img_shape[0]):
+            if np.max(img[i, :, :]) > 0:
+                break
+        if min_x > i:
+            min_x = i
+
+        for i in range(img_shape[0] - 1, 0, -1):
+            if np.max(img[i, :, :]) > 0:
+                break
+        if max_x < i:
+            max_x = i
+
+            #     Y
+        for i in range(0, img_shape[1]):
+            if np.max(img[:, i, :]) > 0:
+                break
+        if min_y > i:
+            min_y = i
+
+        for i in range(img_shape[1] - 1, 0, -1):
+            if np.max(img[:, i, :]) > 0:
+                break
+        if max_y < i:
+            max_y = i
+
+            #     Z
+        for i in range(0, img_shape[2]):
+            if np.max(img[:, :, i]) > 0:
+                break
+        if min_z > i:
+            min_z = i
+
+        for i in range(img_shape[2] - 1, 0, -1):
+            if np.max(img[:, :, i]) > 0:
+                break
+        if max_z < i:
+            max_z = i
+
+        return max_x, max_y, max_z, min_x, min_y, min_z, img
+
+    def transform_data_npz(train_path, df, mask):
+        max_x, max_y, max_z, min_x, min_y, min_z, mask = PreprocessData.find_image_boundary(brain_mask)
+        print(max_x, max_y, max_z)
+        print(min_x, min_y, min_z)
+
+        # Load dataset - 50 for the moment
+        # TODO: Remove the limited number of subjects
+        for index, row in df.iloc[:50].iterrows():
+            file_type = 'smwc1'
+            base_path = train_path / row['Study'] /'derivatives'
+            spm_path = base_path / 'spm' / str('sub-' + index)
+            nifti = spm_path.glob(file_type + '*.nii')
+            img = str(next(nifti))
+            # Mask the image to have only brain related information
+            img = nib.load(img).get_data()
+            img = np.asarray(img, dtype='float32')
+            img = np.nan_to_num(img)
+            img = np.multiply(img, mask)
+            img = img[min_x:max_x, min_y:max_y, min_z:max_z]
+            print("{:3}, {:3}, {:3})\t{:}\t{:6.4} - {:6.4}".format(img.shape[0],
+                img.shape[1], img.shape[2], row['Age'], np.min(img), np.max(img)))
+            img = np.true_divide(img, np.max(img))
+            img = np.reshape(img, (1, img.shape[0], img.shape[1], img.shape[2]))
+            npz_path = base_path / 'npz' / str('sub-' + index)
+            npz_path.mkdir(exist_ok=True, parents=True)
+            file_name = npz_path / '{}_sub-{}.npz'.format(file_type, index)
+            np.savez(file_name, image=img, label=row['Age'])
+            del img
 
     def clean_ixi_dataset(ixi_path):
         """
@@ -114,6 +193,6 @@ if __name__ == '__main__':
     # Save the cleaned dataframe
     df.to_csv(data_path / 'cleaned_BANC_2019.csv')
 
-
-
-
+    # Load the mask image
+    brain_mask = data_path / 'MNI152_T1_1.5mm_brain_masked2.nii.gz'
+    PreprocessData.transform_data_npz(train_path, df, brain_mask)
