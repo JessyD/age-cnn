@@ -91,10 +91,12 @@ class PreprocessData(object):
             img = np.nan_to_num(img)
             img = np.multiply(img, mask)
             img = img[min_x:max_x, min_y:max_y, min_z:max_z]
-            print("{:3}, {:3}, {:3})\t{:}\t{:6.4} - {:6.4}".format(img.shape[0],
-                img.shape[1], img.shape[2], row['Age'], np.min(img), np.max(img)))
+            # Create dummy dimension for channels
+            img = img[..., np.newaxis]
+            # Normalise all features
             img = np.true_divide(img, np.max(img))
-            img = np.reshape(img, (1, img.shape[0], img.shape[1], img.shape[2]))
+            print("{:3}, {:3}, {:3}, {:3})\t{:}\t{:6.4} - {:6.4}".format(img.shape[0],
+                img.shape[1], img.shape[2], img.shape[3], row['Age'], np.min(img), np.max(img)))
             npz_path = base_path / 'npz' / str('sub-' + index)
             npz_path.mkdir(exist_ok=True, parents=True)
             file_name = npz_path / '{}_sub-{}.npz'.format(file_type, index)

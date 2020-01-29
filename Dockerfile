@@ -6,4 +6,4 @@ RUN pip install -r /tmp/requirements.txt
 RUN rm /tmp/requirements.txt
 
 # Add project to container
-RUN mkdir /regeage
+RUN mkdir -p /regeage

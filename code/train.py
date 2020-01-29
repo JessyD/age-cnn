@@ -8,28 +8,32 @@ import numpy as np
 import pandas as pd
 from tensorflow.keras import layers, models, optimizers
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import matplotlib.pyplot as plt
 import nibabel as nib
 from nilearn.masking import apply_mask
 from sklearn.model_selection import train_test_split
 
 
-def get_data(train_path, df):
+def load_data_npz(train_path, df):
     # Load dataset - 50 for the moment
-    data = {'subject_id': [], 'imgs': [], 'labels': []}
+    data = {'subject_id': [], 'image': [], 'label': []}
+    # TODO: Remove the limited number of subjects
     for index, row in df.iloc[:50].iterrows():
-        path = train_path / row['Study'] /'derivatives' / 'spm' / str('sub-' +
+        path = train_path / row['Study'] / 'derivatives' / 'npz' / str('sub-' +
                                                                       row['Subject'])
-        nifti = path.glob('smwc1*.nii')
+        nifti = path.glob('smwc1*.npz')
         img = str(next(nifti))
         # Mask the image to have only brain related information
-        img = nib.load(img).get_fdata()
-        img = np.asarray(img, dtype='float32')
-        img = np.nan_to_num(img)
-        data['imgs'].append(img)
+        img = np.load(img)
+        data['image'].append(img['image'])
         data['subject_id'].append(row['Subject'])
-        data['labels'].append(df[df['Subject'] == row['Subject']]['Age'].values[0])
+        data['label'].append(img['label'])
+
+    # Transform to correct format (samples x dim1 x dim2 x dim3 x channels)
+    data['image'] = np.array(data['image'])
+    data['label'] = np.array(data['label'])
+    data['subject_id'] = np.array(data['subject_id'])
     return data
+
 
 def cnn_model():
     # Define parameters for the network
@@ -39,9 +43,12 @@ def cnn_model():
     STRIDES_MAXPOOL = 2
     conv_padding = 'same'
     pool_padding = 'valid'
-    d1 = 121
-    d2 = 145
-    d3 = 121
+    # d1 = 121
+    # d2 = 145
+    # d3 = 121
+    d1 = 99
+    d2 = 123
+    d3 = 104
     NUM_CHANELS = 1
     N_BLOCKS = 5
     filters_n = [1, 2, 4, 8, 16]
@@ -81,18 +88,12 @@ if __name__ == '__main__':
     MINI_BATCH = 28
 
     # Get data and split into training and test
-    data = get_data(train_path, df)
+    data = load_data_npz(train_path, df)
     test_size = .6
-    X_train, X_test, y_train, y_test = train_test_split(data['imgs'],
-                                                        data['labels'],
+    X_train, X_test, y_train, y_test = train_test_split(data['image'],
+                                                        data['label'],
                                                         test_size=test_size,
                                                         random_state=rnd_seed)
-    # Transform to correct format (samples x dim1 x dim2 x dim3 x channels)
-    X_train = np.array(X_train)[:, :, :, :, np.newaxis]
-    X_test = np.array(X_test)[:, :, :, :, np.newaxis]
-    y_train = np.array(y_train, dtype='float32')
-    y_test = np.array(y_test, dtype='float32')
-
     model = cnn_model()
 
     optimizer = optimizers.SGD(learning_rate=0.0001,
