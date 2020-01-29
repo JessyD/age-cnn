@@ -1,10 +1,10 @@
 from pathlib import Path
 import re
-import glob
 
 import pandas as pd
 import nibabel as nib
 import numpy as np
+import tensorflow as tf
 
 
 class PreprocessData(object):
@@ -72,6 +72,22 @@ class PreprocessData(object):
 
         return max_x, max_y, max_z, min_x, min_y, min_z, img
 
+    def load_img(img_path, min_x, max_x, min_y, max_y, min_z, max_z, mask, age):
+        # Mask the image to have only brain related information
+        img = nib.load(img_path).get_data()
+        img = np.asarray(img, dtype='float32')
+        img = np.nan_to_num(img)
+        img = np.multiply(img, mask)
+        img = img[min_x:max_x, min_y:max_y, min_z:max_z]
+        # Create dummy dimension for channels
+        img = img[..., np.newaxis]
+        # Normalise all features
+        img = np.true_divide(img, np.max(img))
+        print("{:3}, {:3}, {:3}, {:3})\t{:}\t{:6.4} - {:6.4}".format(
+                                img.shape[0], img.shape[1], img.shape[2],
+                                img.shape[3], age, np.min(img), np.max(img)))
+        return img
+
     def transform_data_npz(train_path, df, mask):
         max_x, max_y, max_z, min_x, min_y, min_z, mask = PreprocessData.find_image_boundary(brain_mask)
         print(max_x, max_y, max_z)
@@ -80,28 +96,19 @@ class PreprocessData(object):
         # Load dataset - 50 for the moment
         # TODO: Remove the limited number of subjects
         for index, row in df.iloc[:50].iterrows():
+            age = row['Age']
             file_type = 'smwc1'
-            base_path = train_path / row['Study'] /'derivatives'
+            base_path = train_path / row['Study'] / 'derivatives'
             spm_path = base_path / 'spm' / str('sub-' + index)
             nifti = spm_path.glob(file_type + '*.nii')
-            img = str(next(nifti))
-            # Mask the image to have only brain related information
-            img = nib.load(img).get_data()
-            img = np.asarray(img, dtype='float32')
-            img = np.nan_to_num(img)
-            img = np.multiply(img, mask)
-            img = img[min_x:max_x, min_y:max_y, min_z:max_z]
-            # Create dummy dimension for channels
-            img = img[..., np.newaxis]
-            # Normalise all features
-            img = np.true_divide(img, np.max(img))
-            print("{:3}, {:3}, {:3}, {:3})\t{:}\t{:6.4} - {:6.4}".format(img.shape[0],
-                img.shape[1], img.shape[2], img.shape[3], row['Age'], np.min(img), np.max(img)))
+            img_path = str(next(nifti))
+            img = PreprocessData.load_img(img_path, min_x, max_x, min_y, max_y,
+                                          min_z, max_z, mask, age)
             npz_path = base_path / 'npz' / str('sub-' + index)
             npz_path.mkdir(exist_ok=True, parents=True)
             file_name = npz_path / '{}_sub-{}.npz'.format(file_type, index)
-            np.savez(file_name, image=img, label=row['Age'])
-            del img
+            np.savez(file_name, image=img, label=age)
+            del img, age
 
     def clean_ixi_dataset(ixi_path):
         """
@@ -162,10 +169,50 @@ class PreprocessData(object):
         print('Demographic shape: {}'.format(df.shape))
         return df
 
-    def save_nifti_images_tfrecords():
+    def _int64_feature(value):
+        return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+    def _float_feature(value):
+        return tf.train.Feature(float_list=tf.train.FloatList(value=value))
+
+    def _bytes_feature(value):
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+    def tfrecords_attributes(img, age):
+        feature = {'image': PreprocessData._float_feature(img.ravel()),
+                   'label': PreprocessData._int64_feature(int(age))}
+
+        example = tf.train.Example(features=tf.train.Features(feature=feature))
+        return example
+
+    def transform_data_tfrecords(train_path, df, brain_mask):
         """
         Load all nifti images and save them as tfrecords
         """
+
+        # open the TFRecords file
+        tfrecords_path = train_path / 'tfrecords'
+        writer = tf.io.TFRecordWriter(str(tfrecords_path))
+
+        max_x, max_y, max_z, min_x, min_y, min_z, mask = PreprocessData.find_image_boundary(brain_mask)
+        print(max_x, max_y, max_z)
+        print(min_x, min_y, min_z)
+
+        # Load dataset - 50 for the moment
+        # TODO: Remove the limited number of subjects
+        for index, row in df.iloc[:50].iterrows():
+            age = row['Age']
+            file_type = 'smwc1'
+            base_path = train_path / row['Study'] / 'derivatives'
+            spm_path = base_path / 'spm' / str('sub-' + index)
+            nifti = spm_path.glob(file_type + '*.nii')
+            img_path = str(next(nifti))
+            img = PreprocessData.load_img(img_path, min_x, max_x, min_y, max_y,
+                                          min_z, max_z, mask, age)
+            example = PreprocessData.tfrecords_attributes(img, age)
+            writer.write(example.SerializeToString())
+            del img, age
+        writer.close()
 
 
 if __name__ == '__main__':
@@ -174,6 +221,7 @@ if __name__ == '__main__':
     train_path = data_path / 'train_data'
     demographics_path = data_path / 'all_BANC_2019.csv'
 
+    print("--------------------------------------------------------------------")
     # Clean the IXI, the NKI, SALD  path to make sure that the paths and
     # subjects'id between demographics files and stored files are consistent
     clean_ixi = False
@@ -188,13 +236,24 @@ if __name__ == '__main__':
     if clean_sald:
         sald_path = train_path / 'SALD' / 'derivatives' / 'spm'
         PreprocessData.clean_sald_dataset(sald_path)
+    print("--------------------------------------------------------------------")
 
+    print("--------------------------------------------------------------------")
+    # Clean demographics so that we only have information from the subjects that
+    # we have an image
     dataset = PreprocessData(data_path, shuffle=True)
     df = PreprocessData.load_labels(demographics_path)
     df = PreprocessData.find_subjects(df, train_path)
     # Save the cleaned dataframe
     df.to_csv(data_path / 'cleaned_BANC_2019.csv')
+    print("--------------------------------------------------------------------")
 
+    print("--------------------------------------------------------------------")
     # Load the mask image
     brain_mask = data_path / 'MNI152_T1_1.5mm_brain_masked2.nii.gz'
-    PreprocessData.transform_data_npz(train_path, df, brain_mask)
+
+    # Transform nifti files into npz
+    # PreprocessData.transform_data_npz(train_path, df, brain_mask)
+
+    # Transform nifti files into tensorflow records
+    PreprocessData.transform_data_tfrecords(train_path, df, brain_mask)
