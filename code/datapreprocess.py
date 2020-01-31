@@ -216,8 +216,12 @@ class PreprocessData(object):
 
 
 if __name__ == '__main__':
-    PROJECT_ROOT = Path('/regeage')
-    data_path = PROJECT_ROOT / 'data' / 'BANC_2019'
+    PROJECT_ROOT = Path.cwd()
+    data_path = Path('/media/kcl_1/HDD/DATASETS/DOUTORADO_JESSICA/BANC_2019/')
+
+    #PROJECT_ROOT = Path('/regeage')
+    #data_path = PROJECT_ROOT / 'data' / 'BANC_2019'
+
     train_path = data_path / 'train_data'
     demographics_path = data_path / 'all_BANC_2019.csv'
 
@@ -249,11 +253,9 @@ if __name__ == '__main__':
     print("--------------------------------------------------------------------")
 
     print("--------------------------------------------------------------------")
-    # Load the mask image
-    brain_mask = data_path / 'MNI152_T1_1.5mm_brain_masked2.nii.gz'
 
     # Transform nifti files into npz
     # PreprocessData.transform_data_npz(train_path, df, brain_mask)
 
     # Transform nifti files into tensorflow records
-    PreprocessData.transform_data_tfrecords(train_path, df, brain_mask)
+    #PreprocessData.transform_data_tfrecords(train_path, df, brain_mask)
