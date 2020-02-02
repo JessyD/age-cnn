@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
     tfrecords_path = data_path / 'tfrecords'
     # data = tf.data.TFRecordDataset(str(tfrecords_path)).map(_parse_tfrecords)
-    test_size = .6
+    test_size = .4
     X_train, X_test, y_train, y_test = train_test_split(data['image'],
                                                         data['label'],
                                                         test_size=test_size,
