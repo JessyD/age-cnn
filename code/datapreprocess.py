@@ -228,15 +228,15 @@ if __name__ == '__main__':
     print("--------------------------------------------------------------------")
     # Clean the IXI, the NKI, SALD  path to make sure that the paths and
     # subjects'id between demographics files and stored files are consistent
-    clean_ixi = False
+    clean_ixi = True
     if clean_ixi:
         ixi_path = train_path / 'IXI' / 'derivatives' / 'spm'
         PreprocessData.clean_ixi_dataset(ixi_path)
-    clean_nki = False
+    clean_nki = True
     if clean_nki:
         nki_path = train_path / 'NKI_RS'
         PreprocessData.clean_nki_dataset(nki_path)
-    clean_sald = False
+    clean_sald = True
     if clean_sald:
         sald_path = train_path / 'SALD' / 'derivatives' / 'spm'
         PreprocessData.clean_sald_dataset(sald_path)

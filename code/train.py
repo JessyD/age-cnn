@@ -98,8 +98,6 @@ def load_data(train_path, df, brain_mask):
     print(min_x, min_y, min_z)
 
     data = {'subject_id': [], 'image': [], 'label': []}
-    # Load dataset - 50 for the moment
-    # TODO: Remove the limited number of subjects
     for index, row in df.iterrows():
         age = row['Age']
         file_type = 'smwc1'
@@ -188,7 +186,7 @@ if __name__ == '__main__':
     train_path = data_path / 'train_data'
     demographics_path = data_path / 'all_BANC_2019.csv'
     df = pd.read_csv(data_path / 'cleaned_BANC_2019.csv')
-    model_path = train_path / 'cnn'
+    model_path = data_path / 'cnn'
     model_path.mkdir(exist_ok=True, parents=True)
 
     rnd_seed = 1234
@@ -200,21 +198,31 @@ if __name__ == '__main__':
 
     tfrecords_path = data_path / 'tfrecords'
     # data = tf.data.TFRecordDataset(str(tfrecords_path)).map(_parse_tfrecords)
-    test_size = .4
-    X_train, X_test, y_train, y_test = train_test_split(data['image'],
+    test_size = .2
+    idx_range = range(len(data['image']))
+    X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(data['image'],
                                                         data['label'],
+                                                        idx_range,
                                                         test_size=test_size,
                                                         random_state=rnd_seed)
+    print('Shape of training set {}'.format(X_train.shape))
+    print('Shape of test set {}'.format(X_test.shape))
 
-    mirrored_strategy = tf.distribute.MirroredStrategy()
-    with mirrored_strategy.scope():
-        model = cnn_model()
-        optimizer = optimizers.SGD(learning_rate=0.01,
-                               momentum=0.9,
-                               decay=0.0005)
-        model.compile(optimizer=optimizer,
-                      loss='mae')
+    # Dump the index of the train and test files
+    train_df = pd.DataFrame(columns=['idx_train'])
+    train_df['idx_train'] = idx_train
+    train_df.to_csv(str(model_path / 'idx_train.csv'))
+    test_df = pd.DataFrame(columns=['idx_test'])
+    test_df['idx_test'] = idx_test
+    test_df.to_csv(str(model_path / 'idx_test.csv'))
 
+
+    model = cnn_model()
+    optimizer = optimizers.SGD(learning_rate=0.01,
+                           momentum=0.9,
+                           decay=0.0005)
+    model.compile(optimizer=optimizer,
+                  loss='mae')
 
     model.summary()
 
@@ -234,8 +242,8 @@ if __name__ == '__main__':
 
     # Reduce learning rate when the metric has stopped improving
     reduce_lr = ReduceLROnPlateau(monitor='val_loss',
-                                  factor=0.2,
-                                  patience=5,
+                                  factor=0.5,
+                                  patience=30,
                                   min_lr=0.00001)
 
     # Write Tensorboard logs
