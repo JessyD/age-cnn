@@ -14,6 +14,9 @@ from tensorflow.keras.callbacks import (ReduceLROnPlateau, TensorBoard,
                                         ModelCheckpoint)
 
 
+# Set random seeds
+np.random.seed(1234)
+tf.set_random_seed(1234)
 
 def find_image_boundary(path):
     """ Find the limit of blank voxels in one image.
@@ -175,11 +178,11 @@ def cnn_model():
 
 if __name__ == '__main__':
     # Alternative settings
-    PROJECT_ROOT = Path.cwd()
-    data_path = Path('/media/kcl_1/HDD/DATASETS/DOUTORADO_JESSICA/BANC_2019/')
+    # PROJECT_ROOT = Path.cwd()
+    # data_path = Path('/media/kcl_1/HDD/DATASETS/DOUTORADO_JESSICA/BANC_2019/')
 
-    #PROJECT_ROOT = Path('/regeage')
-    #data_path = PROJECT_ROOT / 'data' / 'BANC_2019'
+    PROJECT_ROOT = Path('/regeage')
+    data_path = PROJECT_ROOT / 'data' / 'BANC_2019'
 
 
     # Load the mask image
