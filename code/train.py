@@ -16,7 +16,7 @@ from tensorflow.keras.callbacks import (ReduceLROnPlateau, TensorBoard,
 
 # Set random seeds
 np.random.seed(1234)
-tf.set_random_seed(1234)
+tf.random.set_seed(1234)
 
 def find_image_boundary(path):
     """ Find the limit of blank voxels in one image.
