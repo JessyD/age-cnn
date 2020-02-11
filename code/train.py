@@ -2,6 +2,7 @@
 """
 This code trains the model
 """
+import datetime
 from pathlib import Path
 
 import nibabel as nib
@@ -183,6 +184,7 @@ if __name__ == '__main__':
 
     # Get data and split into training and test
     ids_df = pd.read_csv(data_path / 'cleaned_BANC_2019.csv')
+    ids_df = ids_df[:100]  # for debug
     data = load_data(train_path, ids_df, brain_mask)
 
     test_size = .2
@@ -228,13 +230,16 @@ if __name__ == '__main__':
                                   min_lr=0.00001)
 
     # Tensorboard callback
-    tboard = TensorBoard(log_dir=log_dir, profile_batch=0)
+    experiment_log_dir = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    tboard = TensorBoard(log_dir=log_dir/experiment_log_dir, profile_batch=0)
 
     history = model.fit(X_train, y_train,
-                        batch_size=6,
+                        batch_size=32,
                         epochs=200,
                         validation_data=(X_test, y_test),
                         callbacks=[reduce_lr, cp_callback, tboard])
+
+    print('\nhistory dict:', history.history)
 
     model.predict(X_test,
                   batch_size=2,
