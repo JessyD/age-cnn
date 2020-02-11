@@ -7,23 +7,14 @@ from pathlib import Path
 import nibabel as nib
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 from tensorflow.keras import layers, models, optimizers
-from tensorflow.keras.callbacks import (ReduceLROnPlateau, TensorBoard,
-                                        ModelCheckpoint)
+from tensorflow.keras.callbacks import (ReduceLROnPlateau, TensorBoard, ModelCheckpoint)
 
-
-# Set random seeds
-np.random.seed(1234)
-tf.random.set_seed(1234)
 
 def find_image_boundary(path):
-    """ Find the limit of blank voxels in one image.
-
-    :param path:
-    :return:
-    """
+    """ Find the limit of blank voxels in one image."""
     min_x = 1000
     max_x = 0
     min_y = 1000
@@ -95,13 +86,13 @@ def load_img(img_path, min_x, max_x, min_y, max_y, min_z, max_z, mask, age):
     return img
 
 
-def load_data(train_path, df, brain_mask):
+def load_data(train_path, ids_df, brain_mask):
     max_x, max_y, max_z, min_x, min_y, min_z, mask = find_image_boundary(brain_mask)
     print(max_x, max_y, max_z)
     print(min_x, min_y, min_z)
 
     data = {'subject_id': [], 'image': [], 'label': []}
-    for index, row in df.iterrows():
+    for index, row in ids_df.iterrows():
         age = row['Age']
         file_type = 'smwc1'
         base_path = train_path / row['Study'] / 'derivatives'
@@ -109,7 +100,7 @@ def load_data(train_path, df, brain_mask):
         nifti = spm_path.glob(file_type + '*.nii')
         img_path = str(next(nifti))
         img = load_img(img_path, min_x, max_x, min_y, max_y,
-                                      min_z, max_z, mask, age)
+                       min_z, max_z, mask, age)
         data['image'].append(img)
         data['subject_id'].append(row['Subject'])
         data['label'].append(row['Age'])
@@ -121,15 +112,6 @@ def load_data(train_path, df, brain_mask):
     data['subject_id'] = np.array(data['subject_id'])
     return data
 
-def _parse_tfrecords(serialised_example):
-    features = tf.io.parse_single_example(
-                    serialised_example,
-                    features={'image': tf.io.FixedLenFeature([], tf.float32),
-                              'label': tf.io.FixedLenFeature([], tf.int64)})
-    shape = [99, 123, 104, 1]
-    images = tf.reshape(features['image'], shape)
-    labels = features['label']
-    return images, labels
 
 def cnn_model():
     # Define parameters for the network
@@ -153,21 +135,21 @@ def cnn_model():
     model = models.Sequential()
     model.add(layers.InputLayer(input_shape=(d1, d2, d3, NUM_CHANELS),
                                 name='input'))
-    for n in range(1, N_BLOCKS+1):
-        model.add(layers.Conv3D(filters * filters_n[n-1], kernel_size,
+    for n in range(1, N_BLOCKS + 1):
+        model.add(layers.Conv3D(filters * filters_n[n - 1], kernel_size,
                                 STRIDES_CONV, padding=conv_padding,
                                 name='Block_{}_Conv1'.format(n)))
         model.add(layers.ReLU(name='Block_{}_Relu1'.format(n)))
-        model.add(layers.Conv3D(filters * filters_n[n-1], kernel_size,
+        model.add(layers.Conv3D(filters * filters_n[n - 1], kernel_size,
                                 STRIDES_CONV, padding=conv_padding,
                                 name='Block_{}_Conv2'.format(n)))
         if not n == 5:
             model.add(layers.BatchNormalization())
         model.add(layers.ReLU(name='Block_{}_Relu2'.format(n)))
         model.add(layers.MaxPool3D(pool_size=(2, 2, 2),
-                               strides=STRIDES_MAXPOOL,
-                               padding=pool_padding,
-                               name='Block_{}_MaxPool'.format(n)))
+                                   strides=STRIDES_MAXPOOL,
+                                   padding=pool_padding,
+                                   name='Block_{}_MaxPool'.format(n)))
 
     model.add(layers.Flatten())
     model.add(layers.Dense(1))
@@ -175,57 +157,59 @@ def cnn_model():
 
 
 if __name__ == '__main__':
+    # Set random seeds
+    rnd_seed = 42
+    np.random.seed(rnd_seed)
+    tf.random.set_seed(rnd_seed)
+
     # Alternative settings
-    # PROJECT_ROOT = Path.cwd()
-    # data_path = Path('/media/kcl_1/HDD/DATASETS/DOUTORADO_JESSICA/BANC_2019/')
+    data_path = Path('/media/kcl_1/HDD/DATASETS/DOUTORADO_JESSICA/BANC_2019/')
+    # PROJECT_ROOT = Path('/regeage')
+    # data_path = PROJECT_ROOT / 'data' / 'BANC_2019'
 
-    PROJECT_ROOT = Path('/regeage')
-    data_path = PROJECT_ROOT / 'data' / 'BANC_2019'
-
-
-    # Load the mask image
     brain_mask = data_path / 'MNI152_T1_1.5mm_brain_masked2.nii.gz'
-
     train_path = data_path / 'train_data'
     demographics_path = data_path / 'all_BANC_2019.csv'
-    df = pd.read_csv(data_path / 'cleaned_BANC_2019.csv')
+
+    # Output file structure
     model_path = data_path / 'cnn'
     model_path.mkdir(exist_ok=True, parents=True)
-
-    rnd_seed = 1234
-    MINI_BATCH = 28
+    log_dir = model_path / 'tensorboard'
+    log_dir.mkdir(exist_ok=True, parents=True)
+    weights_path = model_path / 'weights'
+    weights_path.mkdir(exist_ok=True, parents=True)
+    checkpoint_path = model_path / 'checkpoints'
+    checkpoint_path.mkdir(exist_ok=True, parents=True)
 
     # Get data and split into training and test
-    data = load_data(train_path, df, brain_mask)
+    ids_df = pd.read_csv(data_path / 'cleaned_BANC_2019.csv')
+    data = load_data(train_path, ids_df, brain_mask)
 
-
-    tfrecords_path = data_path / 'tfrecords'
-    # data = tf.data.TFRecordDataset(str(tfrecords_path)).map(_parse_tfrecords)
     test_size = .2
     idx_range = range(len(data['image']))
     X_train, X_test, y_train, y_test, idx_train, idx_test = train_test_split(data['image'],
-                                                        data['label'],
-                                                        idx_range,
-                                                        test_size=test_size,
-                                                        random_state=rnd_seed)
+                                                                             data['label'],
+                                                                             idx_range,
+                                                                             test_size=test_size,
+                                                                             random_state=rnd_seed)
+
     print('Shape of training set {}'.format(X_train.shape))
     print('Shape of test set {}'.format(X_test.shape))
 
     # Dump the index of the train and test files
-    train_df = pd.DataFrame(columns=['idx_train'])
-    train_df['idx_train'] = idx_train
+    train_df = pd.DataFrame(idx_train, columns=['idx_train'])
     train_df.to_csv(str(model_path / 'idx_train.csv'))
-    test_df = pd.DataFrame(columns=['idx_test'])
-    test_df['idx_test'] = idx_test
+
+    test_df = pd.DataFrame(idx_test, columns=['idx_test'])
     test_df.to_csv(str(model_path / 'idx_test.csv'))
 
-
+    # Create model
     model = cnn_model()
     optimizer = optimizers.SGD(learning_rate=0.01,
-                           momentum=0.9,
-                           decay=0.0005)
-    model.compile(optimizer=optimizer,
-                  loss='mae')
+                               momentum=0.9,
+                               decay=0.0005)
+
+    model.compile(optimizer=optimizer, loss='mae')
 
     model.summary()
 
@@ -234,9 +218,7 @@ if __name__ == '__main__':
     with open(str(model_path / 'model_config_banc2019.json'), 'w') as json_file:
         json_file.write(json_config)
 
-    # Save the model to Checkpoint file
-    checkpoint_path = model_path / 'checkpoints'
-    checkpoint_path.mkdir(exist_ok=True, parents=True)
+    # Checkpoint callback
     checkpoint_file = 'checkpoints-{epoch:02d}--{val_loss:.2f}.hdf'
     cp_callback = ModelCheckpoint(filepath=str(checkpoint_path / checkpoint_file),
                                   save_weights_only=True,
@@ -249,24 +231,21 @@ if __name__ == '__main__':
                                   patience=30,
                                   min_lr=0.00001)
 
-    # Write Tensorboard logs
-    log_dir = model_path / 'tensorbord'
-    log_dir.mkdir(exist_ok=True, parents=True)
-    tboard = TensorBoard(log_dir=log_dir)
+    # Tensorboard callback
+    tboard = TensorBoard(log_dir=log_dir, profile_batch=0)
 
-    model.fit(X_train, y_train, callbacks=[reduce_lr, cp_callback, tboard], batch_size=6,
-              epochs=200,
-              validation_data=(X_test, y_test))
+    history = model.fit(X_train, y_train,
+                        batch_size=6,
+                        epochs=200,
+                        validation_data=(X_test, y_test),
+                        callbacks=[reduce_lr, cp_callback, tboard])
 
-    model.predict(X_test, verbose=1, batch_size=2)
-
+    model.predict(X_test,
+                  batch_size=2,
+                  verbose=1)
 
     # Save weights of the trained model
-    weights_path = model_path / 'weights'
-    weights_path.mkdir(exist_ok=True, parents=True)
     model.save_weights(str(weights_path / 'final_weights_banc2019'))
 
     # Write the entire model to HDF5
     model.save(str(model_path / 'banc2019.h5'), save_format='h5')
-
-
