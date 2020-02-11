@@ -213,11 +213,7 @@ if __name__ == '__main__':
 
     model.summary()
 
-    # Serialise model to JSON format
-    json_config = model.to_json()
-    with open(str(model_path / 'model_config_banc2019.json'), 'w') as json_file:
-        json_file.write(json_config)
-
+    # Callbacks
     # Checkpoint callback
     checkpoint_file = 'checkpoints-{epoch:02d}--{val_loss:.2f}.hdf'
     cp_callback = ModelCheckpoint(filepath=str(checkpoint_path / checkpoint_file),
@@ -243,6 +239,11 @@ if __name__ == '__main__':
     model.predict(X_test,
                   batch_size=2,
                   verbose=1)
+
+    # Serialise model to JSON format
+    json_config = model.to_json()
+    with open(str(model_path / 'model_config_banc2019.json'), 'w') as json_file:
+        json_file.write(json_config)
 
     # Save weights of the trained model
     model.save_weights(str(weights_path / 'final_weights_banc2019'))
