@@ -184,7 +184,7 @@ if __name__ == '__main__':
 
     # Get data and split into training and test
     ids_df = pd.read_csv(data_path / 'cleaned_BANC_2019.csv')
-    ids_df = ids_df[:100]  # for debug
+    # ids_df = ids_df[:100]  # for debug
     data = load_data(train_path, ids_df, brain_mask)
 
     test_size = .2
@@ -207,7 +207,7 @@ if __name__ == '__main__':
 
     # Create model
     model = cnn_model()
-    optimizer = optimizers.SGD(learning_rate=0.01,
+    optimizer = optimizers.SGD(learning_rate=0.005,
                                momentum=0.9,
                                decay=0.0005)
 
@@ -219,6 +219,7 @@ if __name__ == '__main__':
     # Checkpoint callback
     checkpoint_file = 'checkpoints-{epoch:02d}--{val_loss:.2f}.hdf'
     cp_callback = ModelCheckpoint(filepath=str(checkpoint_path / checkpoint_file),
+                                  save_best_only=True,
                                   save_weights_only=True,
                                   monitor='val_loss',
                                   verbose=1)
@@ -226,7 +227,7 @@ if __name__ == '__main__':
     # Reduce learning rate when the metric has stopped improving
     reduce_lr = ReduceLROnPlateau(monitor='val_loss',
                                   factor=0.5,
-                                  patience=30,
+                                  patience=10,
                                   min_lr=0.00001)
 
     # Tensorboard callback
