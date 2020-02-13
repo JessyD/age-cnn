@@ -13,6 +13,10 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras import layers, models, optimizers
 from tensorflow.keras.callbacks import (ReduceLROnPlateau, TensorBoard, ModelCheckpoint)
 
+# Set random seeds
+np.random.seed(1234)
+tf.random.set_seed(1234)
+
 
 def find_image_boundary(path):
     """ Find the limit of blank voxels in one image."""
@@ -93,8 +97,10 @@ def load_data(train_path, ids_df, brain_mask):
     print(min_x, min_y, min_z)
 
     data = {'subject_id': [], 'image': [], 'label': []}
-    for index, row in ids_df.iterrows():
-        age = row['Age']
+    # Load dataset - 50 for the moment
+    # TODO: Remove the limited number of subjects
+    for index, row in df.iterrows():
+        age = row['age']
         file_type = 'smwc1'
         base_path = train_path / row['Study'] / 'derivatives'
         spm_path = base_path / 'spm' / 'sub-{}'.format(row['Subject'])
@@ -104,7 +110,7 @@ def load_data(train_path, ids_df, brain_mask):
                        min_z, max_z, mask, age)
         data['image'].append(img)
         data['subject_id'].append(row['Subject'])
-        data['label'].append(row['Age'])
+        data['label'].append(row['age'])
         del img, age
 
     # Transform to correct format (samples x dim1 x dim2 x dim3 x channels)

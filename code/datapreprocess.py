@@ -216,11 +216,11 @@ class PreprocessData(object):
 
 
 if __name__ == '__main__':
-    PROJECT_ROOT = Path.cwd()
-    data_path = Path('/media/kcl_1/HDD/DATASETS/DOUTORADO_JESSICA/BANC_2019/')
+    # PROJECT_ROOT = Path.cwd()
+    # data_path = Path('/media/kcl_1/HDD/DATASETS/DOUTORADO_JESSICA/BANC_2019/')
 
-    #PROJECT_ROOT = Path('/regeage')
-    #data_path = PROJECT_ROOT / 'data' / 'BANC_2019'
+    PROJECT_ROOT = Path('/regeage')
+    data_path = PROJECT_ROOT / 'data' / 'BANC_2019'
 
     train_path = data_path / 'train_data'
     demographics_path = data_path / 'all_BANC_2019.csv'
@@ -249,7 +249,8 @@ if __name__ == '__main__':
     df = PreprocessData.load_labels(demographics_path)
     df = PreprocessData.find_subjects(df, train_path)
     # Save the cleaned dataframe
-    df.to_csv(data_path / 'cleaned_BANC_2019.csv')
+    df.rename(columns={'Age': 'age'}, inplace=True)
+    df.to_csv(data_path / 'BANC_2019' / 'cleaned_BANC_2019.csv')
     print("--------------------------------------------------------------------")
 
     print("--------------------------------------------------------------------")
