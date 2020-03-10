@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from tensorflow.keras.models import load_model
 
-from train import find_image_boundary, load_img
+from train import find_image_boundary, load_img, cnn_model
 
 
 def load_test_data(experiment_path, ids_df, brain_mask):
@@ -50,7 +50,9 @@ if __name__ == '__main__':
     brain_mask = data_path / 'MNI152_T1_1.5mm_brain_masked2.nii.gz'
 
     # load model
-    model = load_model(str(cnn_path / 'banc2019.h5'))
+    checkpoint_path = '.outputs/cnn/checkpoints/checkpoints-94--4.37.hdf'
+    model = cnn_model()
+    model.load_weights(checkpoint_path)
 
     # print model summary
     model.summary()
