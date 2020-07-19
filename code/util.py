@@ -36,20 +36,28 @@ def get_dataflow(seed, data_dir, cache_dir, batch_size):
         if subj == []:
             subj = list(study_dir.glob(f"*sub-{row['Subject']}*"))
             if subj == []:
-                continue
+                subj = list(study_dir.glob(f"*sub-{row['Subject'].rstrip('_S1')}*"))
+                if subj == []:
+                    if row["Study"] == "SALD":
+                        subj = list(study_dir.glob(f"sub-{int(row['Subject']):06d}*"))
+                        if subj == []:
+                            print(f"{row['Study']} {row['Subject']}")
+                            continue
+
 
         c1_img = list(subj[0].glob("./smwc1*"))
         c2_img = list(subj[0].glob("./smwc2*"))
         c3_img = list(subj[0].glob("./smwc3*"))
 
         if c1_img == []:
+            print(f"{row['Study']} {row['Subject']}")
             continue
         if c2_img == []:
+            print(f"{row['Study']} {row['Subject']}")
             continue
         if c3_img == []:
+            print(f"{row['Study']} {row['Subject']}")
             continue
-
-        print(subj)
 
         data_dicts.append({
             "c1": str(c1_img[0]),
