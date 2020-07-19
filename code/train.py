@@ -23,7 +23,7 @@ data_dir = Path("/project/data/BANC/")
 output_dir = Path("/project/outputs/")
 output_dir.mkdir(exist_ok=True)
 
-batch_size = 2
+batch_size = 50
 cache_dir = output_dir / "cached_data"
 cache_dir.mkdir(exist_ok=True)
 train_loader, val_loader = get_dataflow(seed, data_dir, cache_dir, batch_size)
@@ -39,7 +39,7 @@ optimizer = optim.Adam(model.parameters(), lr=lr)
 scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_gamma)
 
 # start a typical PyTorch training
-n_epochs = 10
+n_epochs = 1000
 val_interval = 1
 best_metric = 10000
 best_metric_epoch = 0
@@ -57,12 +57,13 @@ for epoch in range(n_epochs):
     with tqdm(total=len(train_loader), desc=f"epoch {epoch}/{n_epochs}") as pbar:
         for batch_data in train_loader:
             step += 1
-            inputs, labels = batch_data["img"].to(device), batch_data["label"].to(device)
+            inputs, labels = batch_data["img"].to(device), batch_data["label"].to(torch.float32).to(device)
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = loss_func(outputs, labels)
             loss.backward()
             optimizer.step()
+            scheduler.step()
             epoch_loss += loss.item()
             epoch_len = len(train_loader.dataset) // train_loader.batch_size
             writer_train.add_scalar("loss", loss.item(), epoch_len * epoch + step)
