@@ -77,17 +77,24 @@ for epoch in range(n_epochs):
 
         if (epoch + 1) % val_interval == 0:
             epoch_val_loss = 0
+            epoch_val_loss_y = 0
             val_step = 0
             model.eval()
             with torch.no_grad():
                 for val_data in val_loader:
                     val_step += 1
                     val_images, val_labels = val_data["img"].to(device), val_data["label"].to(device)
-                    loss_val = loss_func(model(val_images), val_labels)
+                    y_pred = model(val_images)
+                    loss_val = loss_func(y_pred, val_labels)
+
+                    mae = torch.nn.functional.l1_loss( ((((val_labels+1)/2)*(92-18))+18), ((((y_pred+1)/2)*(92-18))+18))
+
                     epoch_val_loss += loss_val.item()
+                    epoch_val_loss += mae.item()
 
                 epoch_val_loss /= val_step
-                pbar.set_postfix({"loss": f"{epoch_loss:.6}", "val_loss": f"{epoch_val_loss:.6}"})
+                epoch_val_loss_y /= val_step
+                pbar.set_postfix({"loss": f"{epoch_loss:.6}", "val_loss": f"{epoch_val_loss:.6}", "val_loss_y": f"{epoch_val_loss_y:.6}"})
                 pbar.update()
 
                 if epoch_val_loss < best_metric:
