@@ -1,8 +1,10 @@
 """ Helper functions. """
+import numpy as np
 import pandas as pd
 from monai import transforms
-from monai.data import list_data_collate, PersistentDataset, Dataset
+from monai.data import list_data_collate, PersistentDataset
 from torch.utils.data import DataLoader
+
 
 def get_dataflow(seed, data_dir, cache_dir, batch_size):
     # Define transformations
@@ -23,8 +25,9 @@ def get_dataflow(seed, data_dir, cache_dir, batch_size):
     ])
 
     # Get img paths
-    df = pd.read_csv(data_dir/"all_BANC_2019.csv")
+    df = pd.read_csv(data_dir / "all_BANC_2019.csv")
     df = df.sample(frac=1, random_state=seed)
+    df["NormAge"] = (((df["Age"] - 18) / (92 - 18)) * 2) - 1
     data_dicts = []
     for index, row in df.iterrows():
         study_dir = data_dir / row["Study"] / "derivatives" / "spm"
@@ -52,20 +55,20 @@ def get_dataflow(seed, data_dir, cache_dir, batch_size):
             "c1": str(c1_img[0]),
             "c2": str(c2_img[0]),
             "c3": str(c3_img[0]),
-            "label": row["Age"]
+            "label": np.array(row["NormAge"], dtype="float32")
         })
 
+    val_size = len(data_dicts) // 10
     # Create datasets and dataloaders
-    # train_ds = PersistentDataset(data=data_dicts[:2], transform=train_transforms,
-    #                              cache_dir=cache_dir)
-    train_ds = Dataset(data=data_dicts[:2], transform=train_transforms)
+    train_ds = PersistentDataset(data=data_dicts[:-val_size], transform=train_transforms,
+                                 cache_dir=cache_dir)
+    # train_ds = Dataset(data=data_dicts[:2], transform=train_transforms)
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
                               num_workers=4, collate_fn=list_data_collate)
 
-    # val_ds = PersistentDataset(data=data_dicts[2:4], transform=val_transforms,
-    #                            cache_dir=cache_dir)
-    val_ds = Dataset(data=data_dicts[2:4], transform=val_transforms)
+    val_ds = PersistentDataset(data=data_dicts[-val_size:], transform=val_transforms,
+                               cache_dir=cache_dir)
+    # val_ds = Dataset(data=data_dicts[2:4], transform=val_transforms)
     val_loader = DataLoader(val_ds, batch_size=batch_size, num_workers=4)
-
 
     return train_loader, val_loader

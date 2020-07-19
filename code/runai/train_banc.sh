@@ -9,5 +9,4 @@ echo SUCCESS
 printf '%s\n' --------------------
 echo PYTHON
 printf '%s\n' --------------------
-#python3 /project/code/train.py
-sleep 100000
+python3 /project/code/train.py
