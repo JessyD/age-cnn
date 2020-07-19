@@ -2,73 +2,44 @@
 """
 This code trains the model
 """
-from monai.utils import set_determinism
+from pathlib import Path
+
 import numpy as np
-from model import DeepNet
 import torch
-from torch.utils.data import DataLoader
+from monai.utils import set_determinism
+import torch.nn.functional as F
 from tensorboardX import SummaryWriter
-from torch import nn
-import monai
-from monai.transforms import Compose, LoadNiftid, AddChanneld, ScaleIntensityd, Resized, RandRotate90d, ToTensord
+
+from model import DeepNet
+from util import get_dataflow
 
 seed = 0
 set_determinism(seed=seed)
 np.random.seed(seed)
 
-# 2 binary labels for gender classification: man and woman
-labels = np.array([0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0],
-                  dtype=np.int64)
-train_files = [{"img": img, "label": label} for img, label in
-               zip(images[:10], labels[:10])]
-val_files = [{"img": img, "label": label} for img, label in
-             zip(images[-10:], labels[-10:])]
+data_dir = Path("/project/data/BANC/")
+output_dir = Path("/project/outputs/")
+output_dir.mkdir(exist_ok=True)
 
-# Define transforms for image
-train_transforms = Compose(
-    [
-        LoadNiftid(keys=["img"]),
-        AddChanneld(keys=["img"]),
-        ScaleIntensityd(keys=["img"]),
-        Resized(keys=["img"], spatial_size=(96, 96, 96)),
-        RandRotate90d(keys=["img"], prob=0.8, spatial_axes=[0, 2]),
-        ToTensord(keys=["img"]),
-    ]
-)
-val_transforms = Compose(
-    [
-        LoadNiftid(keys=["img"]),
-        AddChanneld(keys=["img"]),
-        ScaleIntensityd(keys=["img"]),
-        Resized(keys=["img"], spatial_size=(96, 96, 96)),
-        ToTensord(keys=["img"]),
-    ]
-)
-
-# create a training data loader
-train_ds = monai.data.Dataset(data=train_files, transform=train_transforms)
-train_loader = DataLoader(train_ds, batch_size=2, shuffle=True, num_workers=4,
-                          pin_memory=torch.cuda.is_available())
-
-# create a validation data loader
-val_ds = monai.data.Dataset(data=val_files, transform=val_transforms)
-val_loader = DataLoader(val_ds, batch_size=2, num_workers=4,
-                        pin_memory=torch.cuda.is_available())
+batch_size = 2
+cache_dir = output_dir / "cached_data"
+cache_dir.mkdir(exist_ok=True)
+train_loader, val_loader = get_dataflow(seed, data_dir, cache_dir, batch_size)
 
 # Create DenseNet121, CrossEntropyLoss and Adam optimizer
-device = torch.device("cuda:0")
+device = torch.device("cuda")
 model = DeepNet()
-loss_function = torch.nn.CrossEntropyLoss()
+model = model.to(device)
+loss_func = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), 1e-5)
 
 # start a typical PyTorch training
+n_epochs = 1000
 val_interval = 2
-best_metric = -1
-best_metric_epoch = -1
-writer = SummaryWriter()
-for epoch in range(5):
-    print("-" * 10)
-    print(f"epoch {epoch + 1}/{5}")
+best_metric = 10000
+# writer_train = SummaryWriter()
+# writer_val = SummaryWriter()
+for epoch in range(n_epochs):
     model.train()
     epoch_loss = 0
     step = 0
@@ -77,13 +48,13 @@ for epoch in range(5):
         inputs, labels = batch_data["img"].to(device), batch_data["label"].to(device)
         optimizer.zero_grad()
         outputs = model(inputs)
-        loss = loss_function(outputs, labels)
+        loss = loss_func(outputs, labels)
         loss.backward()
         optimizer.step()
         epoch_loss += loss.item()
-        epoch_len = len(train_ds) // train_loader.batch_size
+        epoch_len = len(train_loader.dataset) // train_loader.batch_size
         print(f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
-        writer.add_scalar("train_loss", loss.item(), epoch_len * epoch + step)
+        # writer_train.add_scalar("train_loss", loss.item(), epoch_len * epoch + step)
     epoch_loss /= step
     print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
 
