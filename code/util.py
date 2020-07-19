@@ -43,7 +43,9 @@ def get_dataflow(seed, data_dir, cache_dir, batch_size):
                         if subj == []:
                             print(f"{row['Study']} {row['Subject']}")
                             continue
-
+                    else:
+                        print(f"{row['Study']} {row['Subject']}")
+                        continue
 
         c1_img = list(subj[0].glob("./smwc1*"))
         c2_img = list(subj[0].glob("./smwc2*"))
@@ -68,15 +70,15 @@ def get_dataflow(seed, data_dir, cache_dir, batch_size):
 
     val_size = len(data_dicts) // 10
     # Create datasets and dataloaders
-    # train_ds = PersistentDataset(data=data_dicts[:-val_size], transform=train_transforms,
-    #                              cache_dir=cache_dir)
-    train_ds = Dataset(data=data_dicts[:-val_size], transform=train_transforms)
+    train_ds = PersistentDataset(data=data_dicts[:-val_size], transform=train_transforms,
+                                 cache_dir=cache_dir)
+    # train_ds = Dataset(data=data_dicts[:-val_size], transform=train_transforms)
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
                               num_workers=4, collate_fn=list_data_collate)
 
-    # val_ds = PersistentDataset(data=data_dicts[-val_size:], transform=val_transforms,
-    #                            cache_dir=cache_dir)
-    val_ds = Dataset(data=data_dicts[-val_size:], transform=val_transforms)
+    val_ds = PersistentDataset(data=data_dicts[-val_size:], transform=val_transforms,
+                               cache_dir=cache_dir)
+    # val_ds = Dataset(data=data_dicts[-val_size:], transform=val_transforms)
     val_loader = DataLoader(val_ds, batch_size=batch_size, num_workers=4)
 
     return train_loader, val_loader
