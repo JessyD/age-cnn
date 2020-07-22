@@ -4,14 +4,32 @@ import pandas as pd
 from monai import transforms
 from monai.data import list_data_collate, PersistentDataset, Dataset
 from torch.utils.data import DataLoader
+import nibabel as nib
 
 
 def get_dataflow(seed, data_dir, cache_dir, batch_size):
+    img = nib.load(str(data_dir / "average_smwc1.nii"))
+    img_data_1 = img.get_fdata()
+    img_data_1 =  np.expand_dims(img_data_1, axis=0)
+
+    img = nib.load(str(data_dir / "average_smwc2.nii"))
+    img_data_2 = img.get_fdata()
+    img_data_2 =  np.expand_dims(img_data_2, axis=0)
+
+    img = nib.load(str(data_dir / "average_smwc3.nii"))
+    img_data_3 = img.get_fdata()
+    img_data_3 =  np.expand_dims(img_data_3, axis=0)
+
+    mask = np.concatenate((img_data_1, img_data_2, img_data_3))
+    mask[mask > 0.3] = 1
+    mask[mask <= 0.3] = 0
+
     # Define transformations
     train_transforms = transforms.Compose([
         transforms.LoadNiftid(keys=["c1", "c2", "c3"]),
         transforms.AddChanneld(keys=["c1", "c2", "c3"]),
         transforms.ConcatItemsd(keys=["c1", "c2", "c3"], name="img"),
+        transforms.MaskIntensityd(keys=["img"], mask_data=mask),
         transforms.ScaleIntensityd(keys="img"),
         transforms.ToTensord(keys=["img", "label"])
     ])
@@ -20,12 +38,13 @@ def get_dataflow(seed, data_dir, cache_dir, batch_size):
         transforms.LoadNiftid(keys=["c1", "c2", "c3"]),
         transforms.AddChanneld(keys=["c1", "c2", "c3"]),  # I suppose you label data already have 2 channels
         transforms.ConcatItemsd(keys=["c1", "c2", "c3"], name="img"),
+        transforms.MaskIntensityd(keys=["img"], mask_data=mask),
         transforms.ScaleIntensityd(keys="img"),
         transforms.ToTensord(keys=["img", "label"])
     ])
 
     # Get img paths
-    df = pd.read_csv(data_dir / "all_BANC_2019.csv")
+    df = pd.read_csv(data_dir / "banc2019_training_dataset.csv")
     df = df.sample(frac=1, random_state=seed)
     df["NormAge"] = (((df["Age"] - 18) / (92 - 18)) * 2) - 1
     data_dicts = []

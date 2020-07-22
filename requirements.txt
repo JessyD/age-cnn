@@ -7,6 +7,5 @@ scikit-learn==0.22.1
 ipython
 torch==1.5.1
 torchvision==0.6.1
-monai==0.2.0
 tensorboardX==2.1
 tqdm
