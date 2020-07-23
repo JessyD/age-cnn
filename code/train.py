@@ -28,6 +28,7 @@ cache_dir = output_dir / "cached_data"
 cache_dir.mkdir(exist_ok=True)
 train_loader, val_loader = get_dataflow(seed, data_dir, cache_dir, batch_size)
 
+print("Creating model...")
 device = torch.device("cuda")
 model = DeepNet()
 model = model.to(device)
@@ -50,6 +51,7 @@ run_dir.mkdir(exist_ok=True)
 writer_train = SummaryWriter(log_dir=str(run_dir / "train"))
 writer_val = SummaryWriter(log_dir=str(run_dir / "val"))
 
+print("Starting training...")
 for epoch in range(n_epochs):
     model.train()
     epoch_loss = 0
@@ -87,10 +89,10 @@ for epoch in range(n_epochs):
                     y_pred = model(val_images)
                     loss_val = loss_func(y_pred, val_labels)
 
-                    mae = torch.nn.functional.l1_loss( ((((val_labels+1)/2)*(92-18))+18), ((((y_pred+1)/2)*(92-18))+18))
+                    mae = torch.nn.functional.l1_loss(((((val_labels+1)/2)*(92-18))+18), ((((y_pred+1)/2)*(92-18))+18))
 
                     epoch_val_loss += loss_val.item()
-                    epoch_val_loss += mae.item()
+                    epoch_val_loss_y += mae.item()
 
                 epoch_val_loss /= val_step
                 epoch_val_loss_y /= val_step

@@ -87,6 +87,7 @@ def get_dataflow(seed, data_dir, cache_dir, batch_size):
             "label": row["NormAge"]
         })
 
+    print(f"Found {len(data_dicts)} subjects.")
     val_size = len(data_dicts) // 10
     # Create datasets and dataloaders
     train_ds = PersistentDataset(data=data_dicts[:-val_size], transform=train_transforms,
