@@ -102,7 +102,7 @@ for epoch in range(n_epochs):
                 if epoch_val_loss < best_metric:
                     best_metric = epoch_val_loss
                     best_metric_epoch = epoch + 1
-                    torch.save(model.state_dict(), output_dir / "best_metric_model.pth")
+                    torch.save(model, output_dir / "best_metric_model.pth")
                     print("saved new best metric model")
                 writer_val.add_scalar("loss", epoch_val_loss, epoch_len * (epoch + 1))
 
