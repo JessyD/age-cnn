@@ -1,81 +1,61 @@
+#!/usr/bin/env python3
 """
-Load Tensorflow model and make inferences
+This code predict the BANC test set.
 """
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-from tensorflow.keras.models import load_model
+import numpy as np
+import torch
+from monai.utils import set_determinism
+from tqdm import tqdm
 
-from train import find_image_boundary, load_img, cnn_model
+from util import get_test_banc_dataflow
 
+seed = 0
+set_determinism(seed=seed)
+np.random.seed(seed)
 
-def load_test_data(experiment_path, ids_df, brain_mask):
-    max_x, max_y, max_z, min_x, min_y, min_z, mask = find_image_boundary(brain_mask)
-    print(max_x, max_y, max_z)
-    print(min_x, min_y, min_z)
+data_dir = Path("/project/data/BANC/")
+output_dir = Path("/project/outputs/")
+output_dir.mkdir(exist_ok=True)
 
-    data = {'subject_id': [], 'image': [], 'label': [], 'sescode': []}
-    for index, row in ids_df.iterrows():
-        age = row['age']
-        file_type = 'smwc1'
-        base_path = (experiment_path / row['participant_id'] /
-                     row['sescode'] / 'anat' / 'brainager_v21')
-        # if we do not have imaging info for that line go to next
-        if not base_path.is_dir():
-            continue
-        nifti = base_path.glob(file_type + '*.nii')
-        img_path = str(next(nifti))
-        img = load_img(img_path, min_x, max_x, min_y, max_y,
-                       min_z, max_z, mask, age)
-        data['image'].append(img)
-        data['subject_id'].append(row['participant_id'])
-        data['label'].append(row['age'])
-        data['sescode'].append(row['sescode'])
-        del img, age
+batch_size = 50
+test_loader = get_test_banc_dataflow(seed, data_dir, batch_size)
 
-    # Transform to correct format (samples x dim1 x dim2 x dim3 x channels)
-    data['image'] = np.array(data['image'])
-    data['label'] = np.array(data['label'])
-    data['subject_id'] = np.array(data['subject_id'])
-    return data
+device = torch.device("cuda")
+model = torch.load(output_dir / "best_metric_model.pth")
+model.eval()
+model = model.to(device)
 
+df = pd.DataFrame()
 
-if __name__ == '__main__':
-    PROJECT_ROOT = Path('/regeage')
-    # cnn_path = PROJECT_ROOT / 'data' / 'BANC_2019'/ 'cnn'
-    data_path = PROJECT_ROOT / 'data'
-    cnn_path = data_path / 'cnn'
+test_loss_y = 0
+test_step = 0
+with torch.no_grad():
+    with tqdm(total=len(test_loader)) as pbar:
+        for test_data in test_loader:
+            test_step += 1
+            test_images, test_labels = test_data["img"].to(device), test_data["label"].to(device)
+            y_pred = model(test_images)
+            mae = torch.nn.functional.l1_loss(((((test_labels + 1) / 2) * (92 - 18)) + 18),
+                                              ((((y_pred + 1) / 2) * (92 - 18)) + 18))
 
-    brain_mask = data_path / 'MNI152_T1_1.5mm_brain_masked2.nii.gz'
+            test_loss_y += mae.item()
 
-    # load model
-    checkpoint_path = '.outputs/cnn/checkpoints/checkpoints-94--4.37.hdf'
-    model = cnn_model()
-    model.load_weights(checkpoint_path)
+            for subj, study, age, pred_age in zip(test_data["subj"], test_data["study"], test_data["age"],
+                                                  ((((y_pred + 1) / 2) * (92 - 18)) + 18).cpu()):
+                df = df.append(
+                    {
+                        "study": study,
+                        "subj": subj,
+                        "age": age.item(),
+                        "pred_age": pred_age.item(),
+                    }, ignore_index=True)
 
-    # print model summary
-    model.summary()
+            pbar.update()
 
-    # Load the new datasets to evaluate from
-    experiment = 'myConnectome'
-    myconnectome_path = PROJECT_ROOT / 'data' / '{}_cleaned'.format(experiment)
-    # Demographics for simon
-    myconnectome_df = pd.read_csv(str(myconnectome_path / 'participants.tsv'),
-                                 sep='\t', header=0)
-    # Drop nan for age
-    # TODO: Add this the drop step a preprocessing step
-    myconnectome_df.dropna(inplace=True)
-    data = load_test_data(myconnectome_path, myconnectome_df, brain_mask)
+        test_loss_y /= test_step
+        print(f"Test MAE: {test_loss_y:.6}")
 
-    # Check main performance on the dataset
-    score = model.evaluate(data['image'], data['label'])
-
-    # Predict age
-    predicted_age = np.squeeze(model.predict(data['image']))
-    dic = {'subject_id': data['subject_id'], 'sescode': data['sescode'],
-           'predicted age': predicted_age}
-    predicted_df_myconnectome = pd.DataFrame(dic)
-    predicted_df_myconnectome.to_csv(str(myconnectome_path /
-                                     'cnn_cole_myconnectome_predicted.csv'),
-                                     index=False)
+df.to_csv(output_dir / "BANC_test.csv", sep="\t", index=False)
